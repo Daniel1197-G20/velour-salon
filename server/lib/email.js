@@ -3,14 +3,60 @@ const crypto = require("crypto");
 require("dotenv").config();
 
 /**
- * Universal email sender: supports Resend API (Recommended) or Gmail SMTP (Fallback)
+ * Universal email sender:
+ * 1. Brevo API (Recommended for free sending to ANY email WITHOUT custom domain)
+ * 2. Resend API (Requires custom domain for external recipients)
+ * 3. Generic SMTP (Brevo SMTP, Mailjet, Outlook, etc.)
+ * 4. Gmail SMTP (Requires Google App Password)
  */
 async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty" }) {
+  const brevoApiKey = process.env.BREVO_API_KEY;
   const resendApiKey = process.env.RESEND_API_KEY;
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
   const emailUser = process.env.EMAIL_USER;
   const emailPass = process.env.EMAIL_APP_PASSWORD;
 
-  // 1. Primary Method: Resend API (No Google App Password needed)
+  // 1. Brevo API (Free 300 emails/day to ANY recipient - NO DOMAIN REQUIRED)
+  if (brevoApiKey) {
+    try {
+      const senderEmail =
+        process.env.BREVO_SENDER_EMAIL ||
+        process.env.ADMIN_NOTIFICATION_EMAIL ||
+        emailUser ||
+        "azrielstudio45@gmail.com";
+      const recipients = (Array.isArray(to) ? to : [to]).map((email) => ({ email }));
+
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": brevoApiKey.trim(),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: fromName, email: senderEmail },
+          to: recipients,
+          subject,
+          htmlContent: html,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || JSON.stringify(data));
+      }
+      return { success: true, provider: "brevo", id: data.messageId };
+    } catch (err) {
+      console.error("❌ [Brevo Email Error]:", err.message);
+      if (!resendApiKey && !smtpHost && (!emailUser || !emailPass)) {
+        throw err;
+      }
+    }
+  }
+
+  // 2. Resend API
   if (resendApiKey) {
     try {
       const fromEmail = process.env.RESEND_FROM_EMAIL || "Velour Hairs <onboarding@resend.dev>";
@@ -35,17 +81,43 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
       return { success: true, provider: "resend", id: data.id };
     } catch (err) {
       console.error("❌ [Resend Email Error]:", err.message);
-      // If Resend failed (e.g. unverified test domain sandbox restriction)
-      // fall back to SMTP if Gmail credentials are provided
-      if (emailUser && emailPass) {
-        console.log("🔄 [Email] Attempting fallback to Gmail SMTP...");
-      } else {
+      if (!smtpHost && (!emailUser || !emailPass)) {
+        throw err;
+      }
+      console.log("🔄 [Email] Attempting fallback to SMTP...");
+    }
+  }
+
+  // 3. Generic SMTP Transporter (Brevo SMTP, Mailjet, Outlook, etc.)
+  if (smtpHost && smtpUser && smtpPass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: parseInt(process.env.SMTP_PORT || "587", 10),
+        secure: process.env.SMTP_SECURE === "true" || process.env.SMTP_PORT === "465",
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: `"${fromName}" <${process.env.SMTP_FROM || smtpUser}>`,
+        to,
+        subject,
+        html,
+      });
+
+      return { success: true, provider: "smtp", id: info.messageId };
+    } catch (err) {
+      console.error("❌ [Generic SMTP Error]:", err.message);
+      if (!emailUser || !emailPass) {
         throw err;
       }
     }
   }
 
-  // 2. Fallback Method: Gmail / SMTP Transporter
+  // 4. Gmail SMTP Transporter
   if (emailUser && emailPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -63,15 +135,15 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
         html,
       });
 
-      return { success: true, provider: "smtp", id: info.messageId };
+      return { success: true, provider: "gmail-smtp", id: info.messageId };
     } catch (err) {
-      console.error("❌ [SMTP Email Error]:", err.message);
+      console.error("❌ [Gmail SMTP Error]:", err.message);
       throw err;
     }
   }
 
   console.log(
-    "ℹ️  [Email] Skipped: Set RESEND_API_KEY (recommended) or EMAIL_APP_PASSWORD in server/.env"
+    "ℹ️  [Email] Skipped: Set BREVO_API_KEY, RESEND_API_KEY, or SMTP credentials in server/.env"
   );
   return { success: false, skipped: true };
 }

@@ -3,7 +3,9 @@ require("dotenv").config();
 
 async function runDiagnostic() {
   const customTarget = process.argv[2];
+  const brevoApiKey = process.env.BREVO_API_KEY;
   const resendApiKey = process.env.RESEND_API_KEY;
+  const smtpHost = process.env.SMTP_HOST;
   const emailUser = process.env.EMAIL_USER;
   const emailPass = process.env.EMAIL_APP_PASSWORD;
   const to = customTarget || process.env.ADMIN_NOTIFICATION_EMAIL || emailUser || "azrielstudio45@gmail.com";
@@ -12,17 +14,19 @@ async function runDiagnostic() {
   console.log(" Velour Email Notification Diagnostic");
   console.log("=========================================");
   console.log(`Test Recipient: ${to} ${customTarget ? "(Custom recipient tested)" : "(Admin default)"}`);
+  console.log(`Brevo API Key (No Domain needed): ${brevoApiKey ? "CONFIGURED (" + brevoApiKey.substring(0, 10) + "...)" : "NOT SET"}`);
   console.log(`Resend API Key: ${resendApiKey ? "CONFIGURED (" + resendApiKey.substring(0, 6) + "...)" : "NOT SET"}`);
-  console.log(`Resend From Email: ${process.env.RESEND_FROM_EMAIL || "Velour Hairs <onboarding@resend.dev> (Sandbox default)"}`);
+  console.log(`SMTP Host: ${smtpHost ? smtpHost : "NOT SET"}`);
   console.log(`Gmail User / SMTP: ${emailUser ? emailUser : "NOT SET"}`);
   console.log(`Gmail App Password: ${emailPass ? "CONFIGURED" : "NOT SET"}`);
   console.log("=========================================\n");
 
-  if (!resendApiKey && (!emailUser || !emailPass)) {
+  if (!brevoApiKey && !resendApiKey && !smtpHost && (!emailUser || !emailPass)) {
     console.error("❌ No email provider is configured in server/.env");
-    console.log("👉 Recommended Options:");
-    console.log("   Option 1: Add a verified domain on Resend (resend.com/domains) and set RESEND_FROM_EMAIL");
-    console.log("   Option 2: Use Gmail SMTP by setting EMAIL_USER and EMAIL_APP_PASSWORD in server/.env\n");
+    console.log("👉 Recommended Quick Fix (100% Free, NO DOMAIN NEEDED):");
+    console.log("   1. Sign up at https://brevo.com (300 free emails/day to any customer)");
+    console.log("   2. Go to SMTP & API -> Create API Key");
+    console.log("   3. Add BREVO_API_KEY=xkeysib-... to server/.env\n");
     process.exit(1);
   }
 
