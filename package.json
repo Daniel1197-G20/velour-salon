@@ -1,0 +1,19 @@
+{
+  "name": "velour-hairs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Velour Hairs & Beauty - Hair salon booking and shop platform with Firebase Functions and Firestore",
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build:client": "npm --prefix client run build",
+    "serve:emulators": "firebase emulators:start",
+    "deploy": "npm run build:client && firebase deploy",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:hosting": "npm run build:client && firebase deploy --only hosting",
+    "deploy:firestore": "firebase deploy --only firestore"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

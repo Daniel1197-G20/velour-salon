@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body {
+    @apply bg-cream text-ink font-body antialiased;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display text-espresso;
+  }
+  ::selection { background: #C98B72; color: #F3E7D5; }
+  :focus-visible {
+    outline: 2px solid #B5654A;
+    outline-offset: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer utilities {
+  .script-accent {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+  }
+  .arc-line {
+    stroke: #8A5A3B;
+    stroke-width: 1.5;
+    fill: none;
+    opacity: 0.5;
+  }
+}

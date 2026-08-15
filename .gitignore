@@ -1,0 +1,36 @@
+# Node modules
+node_modules/
+*/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+server/.env
+client/.env
+
+# Firebase service account keys and logs
+*serviceAccountKey*.json
+service-account*.json
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+# Build output
+client/dist/
+dist/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+server/*.db
+server/*.db-shm
+server/*.db-wal
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
