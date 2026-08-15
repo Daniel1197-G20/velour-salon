@@ -1,6 +1,67 @@
+const https = require("https");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 require("dotenv").config();
+
+/**
+ * Robust HTTPS POST helper forcing IPv4, handling timeouts, and retrying on transient network/DNS blips
+ */
+async function httpsPost(urlStr, headers, bodyObj, retries = 2) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await new Promise((resolve, reject) => {
+        const url = new URL(urlStr);
+        const data = JSON.stringify(bodyObj);
+
+        const req = https.request(
+          {
+            hostname: url.hostname,
+            port: url.port || 443,
+            path: url.pathname + url.search,
+            method: "POST",
+            family: 4, // Force IPv4 to prevent Node.js fetch IPv6 resolution timeouts
+            timeout: 12000,
+            headers: {
+              ...headers,
+              "Content-Length": Buffer.byteLength(data),
+            },
+          },
+          (res) => {
+            let raw = "";
+            res.on("data", (chunk) => (raw += chunk));
+            res.on("end", () => {
+              try {
+                const parsed = raw ? JSON.parse(raw) : {};
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                  resolve(parsed);
+                } else {
+                  reject(new Error(parsed.message || `HTTP ${res.statusCode}: ${raw}`));
+                }
+              } catch (e) {
+                reject(new Error(`Failed to parse response (HTTP ${res.statusCode}): ${raw}`));
+              }
+            });
+          }
+        );
+
+        req.on("error", reject);
+        req.on("timeout", () => {
+          req.destroy();
+          reject(new Error(`Connection to ${url.hostname} timed out`));
+        });
+
+        req.write(data);
+        req.end();
+      });
+    } catch (err) {
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 600 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 
 /**
  * Universal email sender:
@@ -20,38 +81,56 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
 
   // 1. Brevo API (Free 300 emails/day to ANY recipient - NO DOMAIN REQUIRED)
   if (brevoApiKey) {
-    try {
-      const senderEmail =
-        process.env.BREVO_SENDER_EMAIL ||
-        process.env.ADMIN_NOTIFICATION_EMAIL ||
-        emailUser ||
-        "azrielstudio45@gmail.com";
-      const recipients = (Array.isArray(to) ? to : [to]).map((email) => ({ email }));
+    const senderEmail =
+      process.env.BREVO_SENDER_EMAIL ||
+      process.env.ADMIN_NOTIFICATION_EMAIL ||
+      emailUser ||
+      "azrielstudio45@gmail.com";
+    const recipients = (Array.isArray(to) ? to : [to]).map((email) => ({ email }));
 
-      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
+    try {
+      const data = await httpsPost(
+        "https://api.brevo.com/v3/smtp/email",
+        {
           "api-key": brevoApiKey.trim(),
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({
+        {
           sender: { name: fromName, email: senderEmail },
           to: recipients,
           subject,
           htmlContent: html,
-        }),
-      });
+        }
+      );
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || JSON.stringify(data));
-      }
       return { success: true, provider: "brevo", id: data.messageId };
     } catch (err) {
-      console.error("❌ [Brevo Email Error]:", err.message);
-      if (!resendApiKey && !smtpHost && (!emailUser || !emailPass)) {
-        throw err;
+      console.error("❌ [Brevo Primary Error]:", err.message);
+
+      // Fallback Attempt: Try alternative host api.sendinblue.com
+      try {
+        console.log("🔄 [Brevo] Retrying via backup endpoint...");
+        const backupData = await httpsPost(
+          "https://api.sendinblue.com/v3/smtp/email",
+          {
+            "api-key": brevoApiKey.trim(),
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          {
+            sender: { name: fromName, email: senderEmail },
+            to: recipients,
+            subject,
+            htmlContent: html,
+          }
+        );
+        return { success: true, provider: "brevo-backup", id: backupData.messageId };
+      } catch (backupErr) {
+        console.error("❌ [Brevo Backup Error]:", backupErr.message);
+        if (!resendApiKey && !smtpHost && (!emailUser || !emailPass)) {
+          throw backupErr;
+        }
       }
     }
   }
@@ -60,24 +139,20 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
   if (resendApiKey) {
     try {
       const fromEmail = process.env.RESEND_FROM_EMAIL || "Velour Hairs <onboarding@resend.dev>";
-      const response = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
+      const data = await httpsPost(
+        "https://api.resend.com/emails",
+        {
           Authorization: `Bearer ${resendApiKey.trim()}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
+        {
           from: fromEmail,
           to: Array.isArray(to) ? to : [to],
           subject,
           html,
-        }),
-      });
+        }
+      );
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || JSON.stringify(data));
-      }
       return { success: true, provider: "resend", id: data.id };
     } catch (err) {
       console.error("❌ [Resend Email Error]:", err.message);
