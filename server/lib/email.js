@@ -35,7 +35,13 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
       return { success: true, provider: "resend", id: data.id };
     } catch (err) {
       console.error("❌ [Resend Email Error]:", err.message);
-      throw err;
+      // If Resend failed (e.g. unverified test domain sandbox restriction)
+      // fall back to SMTP if Gmail credentials are provided
+      if (emailUser && emailPass) {
+        console.log("🔄 [Email] Attempting fallback to Gmail SMTP...");
+      } else {
+        throw err;
+      }
     }
   }
 
