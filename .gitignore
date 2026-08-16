@@ -12,6 +12,7 @@ client/.env
 # Firebase service account keys and logs
 *serviceAccountKey*.json
 service-account*.json
+*adminsdk*.json
 firebase-debug.log
 firebase-debug.*.log
 firestore-debug.log

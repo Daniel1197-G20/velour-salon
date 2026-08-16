@@ -70,7 +70,7 @@ async function httpsPost(urlStr, headers, bodyObj, retries = 2) {
  * 3. Generic SMTP (Brevo SMTP, Mailjet, Outlook, etc.)
  * 4. Gmail SMTP (Requires Google App Password)
  */
-async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty" }) {
+async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty", replyTo }) {
   const brevoApiKey = process.env.BREVO_API_KEY;
   const resendApiKey = process.env.RESEND_API_KEY;
   const smtpHost = process.env.SMTP_HOST;
@@ -88,6 +88,17 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
       "azrielstudio45@gmail.com";
     const recipients = (Array.isArray(to) ? to : [to]).map((email) => ({ email }));
 
+    const payload = {
+      sender: { name: fromName, email: senderEmail },
+      to: recipients,
+      subject,
+      htmlContent: html,
+    };
+
+    if (replyTo) {
+      payload.replyTo = typeof replyTo === "string" ? { email: replyTo } : replyTo;
+    }
+
     try {
       const data = await httpsPost(
         "https://api.brevo.com/v3/smtp/email",
@@ -96,12 +107,7 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        {
-          sender: { name: fromName, email: senderEmail },
-          to: recipients,
-          subject,
-          htmlContent: html,
-        }
+        payload
       );
 
       return { success: true, provider: "brevo", id: data.messageId };
@@ -118,12 +124,7 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          {
-            sender: { name: fromName, email: senderEmail },
-            to: recipients,
-            subject,
-            htmlContent: html,
-          }
+          payload
         );
         return { success: true, provider: "brevo-backup", id: backupData.messageId };
       } catch (backupErr) {
@@ -139,18 +140,23 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
   if (resendApiKey) {
     try {
       const fromEmail = process.env.RESEND_FROM_EMAIL || "Velour Hairs <onboarding@resend.dev>";
+      const resendBody = {
+        from: fromEmail,
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html,
+      };
+      if (replyTo) {
+        resendBody.reply_to = typeof replyTo === "string" ? replyTo : replyTo.email;
+      }
+
       const data = await httpsPost(
         "https://api.resend.com/emails",
         {
           Authorization: `Bearer ${resendApiKey.trim()}`,
           "Content-Type": "application/json",
         },
-        {
-          from: fromEmail,
-          to: Array.isArray(to) ? to : [to],
-          subject,
-          html,
-        }
+        resendBody
       );
 
       return { success: true, provider: "resend", id: data.id };
@@ -176,13 +182,17 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
         },
       });
 
-      const info = await transporter.sendMail({
+      const mailOptions = {
         from: `"${fromName}" <${process.env.SMTP_FROM || smtpUser}>`,
         to,
         subject,
         html,
-      });
+      };
+      if (replyTo) {
+        mailOptions.replyTo = typeof replyTo === "string" ? replyTo : replyTo.email;
+      }
 
+      const info = await transporter.sendMail(mailOptions);
       return { success: true, provider: "smtp", id: info.messageId };
     } catch (err) {
       console.error("❌ [Generic SMTP Error]:", err.message);
@@ -203,13 +213,17 @@ async function sendEmail({ to, subject, html, fromName = "Velour Hairs & Beauty"
         },
       });
 
-      const info = await transporter.sendMail({
+      const mailOptions = {
         from: `"${fromName}" <${emailUser}>`,
         to,
         subject,
         html,
-      });
+      };
+      if (replyTo) {
+        mailOptions.replyTo = typeof replyTo === "string" ? replyTo : replyTo.email;
+      }
 
+      const info = await transporter.sendMail(mailOptions);
       return { success: true, provider: "gmail-smtp", id: info.messageId };
     } catch (err) {
       console.error("❌ [Gmail SMTP Error]:", err.message);
@@ -273,6 +287,7 @@ async function sendBookingPendingCustomerEmail({ booking, service }) {
   const servicePrice = formatPrice(service?.price || booking.service_price);
   const formattedDate = booking.date;
   const formattedTime = booking.time;
+  const salonEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.BREVO_SENDER_EMAIL;
 
   const customerHtml = `
     <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #FAF8F5; padding: 28px; border-radius: 14px; border: 1px solid #E6DED6; color: #231815; box-shadow: 0 4px 16px rgba(0,0,0,0.03);">
@@ -347,6 +362,7 @@ async function sendBookingPendingCustomerEmail({ booking, service }) {
       subject: `⏳ Appointment Request Received: ${serviceName} (${formattedDate} @ ${formattedTime})`,
       html: customerHtml,
       fromName: "Velour Hairs & Beauty",
+      replyTo: salonEmail,
     });
     console.log(`✉️ [Email] Customer pending request email sent to: ${booking.email}`);
   } catch (err) {
@@ -461,6 +477,7 @@ async function sendBookingAdminNotification({ booking, service, baseUrl: customB
       subject: `🗓️ [Action Required] New Appointment: ${booking.customer_name} - ${serviceName} (${formattedDate} @ ${formattedTime})`,
       html: ownerHtml,
       fromName: "Velour Booking System",
+      replyTo: booking.email ? { email: booking.email, name: booking.customer_name } : undefined,
     });
     console.log(`✉️ [Email] Owner actionable notification sent to: ${salonEmail}`);
   } catch (err) {
@@ -478,6 +495,7 @@ async function sendBookingApprovedCustomerEmail({ booking, service }) {
   const servicePrice = formatPrice(service?.price || booking.service_price);
   const formattedDate = booking.date;
   const formattedTime = booking.time;
+  const salonEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.BREVO_SENDER_EMAIL;
 
   const customerHtml = `
     <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #FAF8F5; padding: 28px; border-radius: 14px; border: 1px solid #E6DED6; color: #231815; box-shadow: 0 4px 16px rgba(0,0,0,0.03);">
@@ -544,6 +562,7 @@ async function sendBookingApprovedCustomerEmail({ booking, service }) {
       subject: `🎉 Appointment Confirmed: ${serviceName} on ${formattedDate} at ${formattedTime}`,
       html: customerHtml,
       fromName: "Velour Hairs & Beauty",
+      replyTo: salonEmail,
     });
     console.log(`✉️ [Email] Customer confirmation/approval sent to: ${booking.email}`);
   } catch (err) {
@@ -552,7 +571,98 @@ async function sendBookingApprovedCustomerEmail({ booking, service }) {
 }
 
 /**
- * 4. Email to Customer: Appointment Rejected / Cancelled
+ * 4. Alert Email to Salon Admin: Appointment Confirmed Receipt / Status Notice
+ */
+async function sendBookingApprovedAdminNotification({ booking, service, baseUrl: customBaseUrl }) {
+  const salonEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.EMAIL_USER;
+  if (!salonEmail) return;
+
+  const serviceName = service?.name || booking.service_name || "Salon Service";
+  const servicePrice = formatPrice(service?.price || booking.service_price);
+  const formattedDate = booking.date;
+  const formattedTime = booking.time;
+  const baseUrl = getBaseUrl(customBaseUrl);
+  const dashboardUrl = `${baseUrl}/admin`;
+
+  const adminHtml = `
+    <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #FAF8F5; padding: 28px; border-radius: 14px; border: 1px solid #E6DED6; color: #231815; box-shadow: 0 4px 16px rgba(0,0,0,0.03);">
+      <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #E6DED6;">
+        <h2 style="color: #9E4759; margin: 0; font-size: 24px; letter-spacing: 2px; font-weight: 700;">VELOUR HAIRS & BEAUTY</h2>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #73645B; text-transform: uppercase; letter-spacing: 1.5px;">Appointment Confirmed Notification</p>
+      </div>
+
+      <!-- Confirmation Status Banner -->
+      <div style="background-color: #E8F5E9; border: 1px solid #A5D6A7; border-left: 4px solid #2E7D32; border-radius: 8px; padding: 14px 18px; margin: 20px 0;">
+        <p style="margin: 0; font-size: 15px; color: #2E7D32; font-weight: bold;">
+          ✅ Appointment Successfully Confirmed
+        </p>
+        <p style="margin: 4px 0 0 0; font-size: 13px; color: #1B5E20;">
+          This booking is confirmed on your schedule.${booking.email ? ` A confirmation email was delivered to <strong>${booking.email}</strong>.` : ""}
+        </p>
+      </div>
+
+      <!-- Booking Details Card -->
+      <div style="background-color: #FFFFFF; border-radius: 10px; padding: 22px; margin-top: 20px; border: 1px solid #E6DED6;">
+        <h3 style="margin-top: 0; color: #231815; font-size: 16px; border-bottom: 1px dashed #E6DED6; padding-bottom: 10px;">Confirmed Booking Details</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <tr>
+            <td style="padding: 8px 0; color: #73645B; width: 35%;"><strong>Customer:</strong></td>
+            <td style="padding: 8px 0; color: #231815; font-weight: 600;">${booking.customer_name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Phone:</strong></td>
+            <td style="padding: 8px 0;"><a href="tel:${booking.phone}" style="color: #9E4759; font-weight: bold; text-decoration: none;">${booking.phone}</a></td>
+          </tr>
+          ${booking.email ? `
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Email:</strong></td>
+            <td style="padding: 8px 0; color: #231815;"><a href="mailto:${booking.email}" style="color: #9E4759; text-decoration: none;">${booking.email}</a></td>
+          </tr>` : ""}
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Service:</strong></td>
+            <td style="padding: 8px 0; color: #231815;"><strong>${serviceName}</strong> (${servicePrice})</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Confirmed Date:</strong></td>
+            <td style="padding: 8px 0; color: #231815; font-weight: bold;">${formattedDate}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Confirmed Time:</strong></td>
+            <td style="padding: 8px 0; color: #231815; font-weight: bold;">${formattedTime}</td>
+          </tr>
+          ${booking.notes ? `
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Customer Notes:</strong></td>
+            <td style="padding: 8px 0; color: #231815; font-style: italic;">"${booking.notes}"</td>
+          </tr>` : ""}
+        </table>
+      </div>
+
+      <!-- Dashboard CTA -->
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${dashboardUrl}" style="background-color: #231815; color: #FAF8F5; padding: 12px 28px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
+          Open Admin Dashboard
+        </a>
+      </div>
+    </div>
+  `;
+
+  try {
+    await sendEmail({
+      to: salonEmail,
+      subject: `✅ [Confirmed] Appointment: ${booking.customer_name} - ${serviceName} (${formattedDate} @ ${formattedTime})`,
+      html: adminHtml,
+      fromName: "Velour Booking System",
+      replyTo: booking.email ? { email: booking.email, name: booking.customer_name } : undefined,
+    });
+    console.log(`✉️ [Email] Admin confirmation receipt sent to: ${salonEmail}`);
+  } catch (err) {
+    console.error("❌ [Email] Failed to send admin confirmation email:", err.message);
+  }
+}
+
+/**
+ * 5. Email to Customer: Appointment Rejected / Cancelled
  */
 async function sendBookingRejectedCustomerEmail({ booking, service, baseUrl: customBaseUrl }) {
   if (!booking.email) return;
@@ -562,6 +672,7 @@ async function sendBookingRejectedCustomerEmail({ booking, service, baseUrl: cus
   const formattedTime = booking.time;
   const baseUrl = getBaseUrl(customBaseUrl);
   const bookingPageUrl = `${baseUrl}/booking`;
+  const salonEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.BREVO_SENDER_EMAIL;
 
   const customerHtml = `
     <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #FAF8F5; padding: 28px; border-radius: 14px; border: 1px solid #E6DED6; color: #231815; box-shadow: 0 4px 16px rgba(0,0,0,0.03);">
@@ -612,10 +723,96 @@ async function sendBookingRejectedCustomerEmail({ booking, service, baseUrl: cus
       subject: `Update regarding your appointment request - Velour Hairs & Beauty`,
       html: customerHtml,
       fromName: "Velour Hairs & Beauty",
+      replyTo: salonEmail,
     });
     console.log(`✉️ [Email] Customer rejection/cancellation sent to: ${booking.email}`);
   } catch (err) {
     console.error("❌ [Email] Failed to send customer rejection email:", err.message);
+  }
+}
+
+/**
+ * 6. Alert Email to Salon Admin: Appointment Rejected / Cancelled Notice
+ */
+async function sendBookingRejectedAdminNotification({ booking, service, baseUrl: customBaseUrl }) {
+  const salonEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.EMAIL_USER;
+  if (!salonEmail) return;
+
+  const serviceName = service?.name || booking.service_name || "Salon Service";
+  const formattedDate = booking.date;
+  const formattedTime = booking.time;
+  const baseUrl = getBaseUrl(customBaseUrl);
+  const dashboardUrl = `${baseUrl}/admin`;
+
+  const adminHtml = `
+    <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #FAF8F5; padding: 28px; border-radius: 14px; border: 1px solid #E6DED6; color: #231815; box-shadow: 0 4px 16px rgba(0,0,0,0.03);">
+      <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #E6DED6;">
+        <h2 style="color: #9E4759; margin: 0; font-size: 24px; letter-spacing: 2px; font-weight: 700;">VELOUR HAIRS & BEAUTY</h2>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #73645B; text-transform: uppercase; letter-spacing: 1.5px;">Appointment Declined / Cancelled</p>
+      </div>
+
+      <!-- Declined Status Banner -->
+      <div style="background-color: #FFEBEE; border: 1px solid #FFCDD2; border-left: 4px solid #C62828; border-radius: 8px; padding: 14px 18px; margin: 20px 0;">
+        <p style="margin: 0; font-size: 15px; color: #C62828; font-weight: bold;">
+          ❌ Appointment Request Declined / Cancelled
+        </p>
+        <p style="margin: 4px 0 0 0; font-size: 13px; color: #5D4037;">
+          This booking has been marked as cancelled.${booking.email ? ` A status update email was dispatched to <strong>${booking.email}</strong>.` : ""}
+        </p>
+      </div>
+
+      <!-- Booking Details Card -->
+      <div style="background-color: #FFFFFF; border-radius: 10px; padding: 22px; margin-top: 20px; border: 1px solid #E6DED6;">
+        <h3 style="margin-top: 0; color: #231815; font-size: 16px; border-bottom: 1px dashed #E6DED6; padding-bottom: 10px;">Booking Details</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <tr>
+            <td style="padding: 8px 0; color: #73645B; width: 35%;"><strong>Customer:</strong></td>
+            <td style="padding: 8px 0; color: #231815; font-weight: 600;">${booking.customer_name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Phone:</strong></td>
+            <td style="padding: 8px 0;"><a href="tel:${booking.phone}" style="color: #9E4759; font-weight: bold; text-decoration: none;">${booking.phone}</a></td>
+          </tr>
+          ${booking.email ? `
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Email:</strong></td>
+            <td style="padding: 8px 0; color: #231815;"><a href="mailto:${booking.email}" style="color: #9E4759; text-decoration: none;">${booking.email}</a></td>
+          </tr>` : ""}
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Service:</strong></td>
+            <td style="padding: 8px 0; color: #231815;"><strong>${serviceName}</strong></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Date:</strong></td>
+            <td style="padding: 8px 0; color: #231815; font-weight: bold;">${formattedDate}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #73645B;"><strong>Time:</strong></td>
+            <td style="padding: 8px 0; color: #231815; font-weight: bold;">${formattedTime}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Dashboard CTA -->
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${dashboardUrl}" style="background-color: #231815; color: #FAF8F5; padding: 12px 28px; border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
+          Open Admin Dashboard
+        </a>
+      </div>
+    </div>
+  `;
+
+  try {
+    await sendEmail({
+      to: salonEmail,
+      subject: `❌ [Declined] Appointment: ${booking.customer_name} - ${serviceName} (${formattedDate} @ ${formattedTime})`,
+      html: adminHtml,
+      fromName: "Velour Booking System",
+      replyTo: booking.email ? { email: booking.email, name: booking.customer_name } : undefined,
+    });
+    console.log(`✉️ [Email] Admin rejection notice sent to: ${salonEmail}`);
+  } catch (err) {
+    console.error("❌ [Email] Failed to send admin rejection notice:", err.message);
   }
 }
 
@@ -632,19 +829,113 @@ async function sendBookingNotifications({ booking, service, baseUrl }) {
 }
 
 /**
- * Send email notification for a new product order
+ * Master method called when a booking is confirmed/approved:
+ * 1. Sends confirmed email to customer
+ * 2. Sends confirmed notification receipt to Salon Admin
  */
-async function sendOrderNotifications({ order }) {
-  const salonEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.EMAIL_USER;
+async function sendBookingApprovedNotifications({ booking, service, baseUrl }) {
+  await Promise.allSettled([
+    sendBookingApprovedCustomerEmail({ booking, service }),
+    sendBookingApprovedAdminNotification({ booking, service, baseUrl }),
+  ]);
+}
 
-  if (!salonEmail) {
-    return;
-  }
+/**
+ * Master method called when a booking is rejected/cancelled:
+ * 1. Sends decline email to customer
+ * 2. Sends decline notification to Salon Admin
+ */
+async function sendBookingRejectedNotifications({ booking, service, baseUrl }) {
+  await Promise.allSettled([
+    sendBookingRejectedCustomerEmail({ booking, service, baseUrl }),
+    sendBookingRejectedAdminNotification({ booking, service, baseUrl }),
+  ]);
+}
 
-  const itemsList = order.items
+/**
+ * Send email confirmation receipt to customer for product order
+ */
+async function sendOrderCustomerConfirmation({ order }) {
+  if (!order.email) return;
+
+  const itemsList = (order.items || [])
     .map(
       (item) =>
-        `<li><strong>${item.quantity}x</strong> ${item.name} — ${formatPrice(item.price * item.quantity)}</li>`
+        `<tr>
+          <td style="padding: 8px 0; color: #231815;"><strong>${item.quantity || 1}x</strong> ${item.name}</td>
+          <td style="padding: 8px 0; color: #231815; text-align: right; font-weight: 600;">${formatPrice((item.price || 0) * (item.quantity || 1))}</td>
+        </tr>`
+    )
+    .join("");
+
+  const salonEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.BREVO_SENDER_EMAIL;
+
+  const customerHtml = `
+    <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #FAF8F5; padding: 28px; border-radius: 14px; border: 1px solid #E6DED6; color: #231815; box-shadow: 0 4px 16px rgba(0,0,0,0.03);">
+      <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #E6DED6;">
+        <h2 style="color: #9E4759; margin: 0; font-size: 24px; letter-spacing: 2px; font-weight: 700;">VELOUR HAIRS & BEAUTY</h2>
+        <p style="margin: 6px 0 0 0; font-size: 13px; color: #73645B; text-transform: uppercase; letter-spacing: 1.5px;">Order Confirmation</p>
+      </div>
+
+      <div style="margin-top: 24px; font-size: 15px; line-height: 1.6;">
+        <p style="margin: 0 0 12px 0;">Hello <strong>${order.customer_name}</strong>,</p>
+        <p style="margin: 0 0 16px 0;">Thank you for shopping with Velour Hairs & Beauty! We have received your order and our team is preparing it for delivery.</p>
+      </div>
+
+      <!-- Order Summary Card -->
+      <div style="background-color: #FFFFFF; border-radius: 10px; padding: 22px; margin-top: 20px; border: 1px solid #E6DED6;">
+        <h3 style="margin-top: 0; color: #9E4759; font-size: 16px; border-bottom: 1px dashed #E6DED6; padding-bottom: 10px;">Order Summary</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          ${itemsList}
+          <tr style="border-top: 2px solid #E6DED6;">
+            <td style="padding: 12px 0 4px 0; color: #231815; font-weight: bold; font-size: 15px;">Total Amount (Pay on Delivery):</td>
+            <td style="padding: 12px 0 4px 0; color: #9E4759; text-align: right; font-weight: bold; font-size: 16px;">${formatPrice(order.total)}</td>
+          </tr>
+        </table>
+
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px dashed #E6DED6; font-size: 13px; color: #73645B;">
+          <p style="margin: 0 0 4px 0;"><strong>Delivery Address:</strong> ${order.address}</p>
+          <p style="margin: 0;"><strong>Contact Phone:</strong> ${order.phone}</p>
+        </div>
+      </div>
+
+      <!-- Support Box -->
+      <div style="margin-top: 24px; padding: 16px; background-color: #EFE9E2; border-radius: 8px; font-size: 13px; color: #4A3E39; line-height: 1.5;">
+        <strong>Questions about your delivery?</strong><br/>
+        Contact our store support at <a href="tel:08103043035" style="color: #9E4759; font-weight: bold; text-decoration: none;">0810 304 3035</a>.
+      </div>
+
+      <div style="text-align: center; margin-top: 24px; font-size: 12px; color: #73645B;">
+        <p style="margin: 0; font-weight: bold;">Velour Hairs & Beauty</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await sendEmail({
+      to: order.email,
+      subject: `🛍️ Order Confirmed - Velour Hairs & Beauty (${formatPrice(order.total)})`,
+      html: customerHtml,
+      fromName: "Velour Hairs Store",
+      replyTo: salonEmail,
+    });
+    console.log(`✉️ [Email] Customer order confirmation sent to: ${order.email}`);
+  } catch (err) {
+    console.error("❌ [Email] Failed to send customer order confirmation:", err.message);
+  }
+}
+
+/**
+ * Send email notification for a new product order to Admin
+ */
+async function sendOrderAdminNotification({ order }) {
+  const salonEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.EMAIL_USER;
+  if (!salonEmail) return;
+
+  const itemsList = (order.items || [])
+    .map(
+      (item) =>
+        `<li><strong>${item.quantity || 1}x</strong> ${item.name} — ${formatPrice((item.price || 0) * (item.quantity || 1))}</li>`
     )
     .join("");
 
@@ -658,8 +949,8 @@ async function sendOrderNotifications({ order }) {
       <div style="background-color: #FFFFFF; border-radius: 8px; padding: 20px; margin-top: 20px; border: 1px solid #E6DED6;">
         <h3 style="margin-top: 0; color: #231815; font-size: 17px;">Order Details (Total: ${formatPrice(order.total)})</h3>
         <p style="margin: 4px 0; font-size: 14px;"><strong>Customer:</strong> ${order.customer_name}</p>
-        <p style="margin: 4px 0; font-size: 14px;"><strong>Phone:</strong> <a href="tel:${order.phone}" style="color: #9E4759;">${order.phone}</a></p>
-        ${order.email ? `<p style="margin: 4px 0; font-size: 14px;"><strong>Email:</strong> ${order.email}</p>` : ""}
+        <p style="margin: 4px 0; font-size: 14px;"><strong>Phone:</strong> <a href="tel:${order.phone}" style="color: #9E4759; font-weight: bold;">${order.phone}</a></p>
+        ${order.email ? `<p style="margin: 4px 0; font-size: 14px;"><strong>Email:</strong> <a href="mailto:${order.email}" style="color: #9E4759;">${order.email}</a></p>` : ""}
         <p style="margin: 4px 0; font-size: 14px;"><strong>Delivery Address:</strong> ${order.address}</p>
 
         <h4 style="margin: 16px 0 8px 0; color: #73645B; font-size: 14px;">Ordered Items:</h4>
@@ -676,11 +967,24 @@ async function sendOrderNotifications({ order }) {
       subject: `🛍️ New Product Order: ${order.customer_name} (${formatPrice(order.total)})`,
       html: ownerHtml,
       fromName: "Velour Hairs Store",
+      replyTo: order.email ? { email: order.email, name: order.customer_name } : undefined,
     });
-    console.log(`✉️ [Email] Order notification sent to: ${salonEmail}`);
+    console.log(`✉️ [Email] Admin order notification sent to: ${salonEmail}`);
   } catch (err) {
-    console.error("❌ [Email] Failed to send order notification:", err.message);
+    console.error("❌ [Email] Failed to send admin order notification:", err.message);
   }
+}
+
+/**
+ * Master method called when a new product order is placed:
+ * 1. Sends order alert to Salon Admin
+ * 2. Sends receipt confirmation to Customer (if customer email is present)
+ */
+async function sendOrderNotifications({ order }) {
+  await Promise.allSettled([
+    sendOrderAdminNotification({ order }),
+    sendOrderCustomerConfirmation({ order }),
+  ]);
 }
 
 module.exports = {
@@ -690,8 +994,13 @@ module.exports = {
   sendBookingPendingCustomerEmail,
   sendBookingAdminNotification,
   sendBookingApprovedCustomerEmail,
+  sendBookingApprovedAdminNotification,
   sendBookingRejectedCustomerEmail,
+  sendBookingRejectedAdminNotification,
   sendBookingNotifications,
+  sendBookingApprovedNotifications,
+  sendBookingRejectedNotifications,
+  sendOrderAdminNotification,
+  sendOrderCustomerConfirmation,
   sendOrderNotifications,
 };
-

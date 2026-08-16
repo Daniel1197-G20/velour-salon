@@ -3,6 +3,8 @@ const db = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 const {
   sendBookingNotifications,
+  sendBookingApprovedNotifications,
+  sendBookingRejectedNotifications,
   sendBookingApprovedCustomerEmail,
   sendBookingRejectedCustomerEmail,
   verifyActionToken,
@@ -285,9 +287,9 @@ router.get("/action", async (req, res, next) => {
     if (action === "approve") {
       const updated = await db.bookings.update(id, { status: "confirmed" });
       
-      // Dispatch confirmed email to customer
-      sendBookingApprovedCustomerEmail({ booking: updated, service: updated.service }).catch((e) =>
-        console.error("Approval customer email error:", e.message)
+      // Dispatch confirmed email to customer and notification receipt to salon admin
+      sendBookingApprovedNotifications({ booking: updated, service: updated.service, baseUrl }).catch((e) =>
+        console.error("Approval notifications error:", e.message)
       );
 
       return res.send(
@@ -307,9 +309,9 @@ router.get("/action", async (req, res, next) => {
     if (action === "reject") {
       const updated = await db.bookings.update(id, { status: "cancelled" });
 
-      // Dispatch decline email to customer
-      sendBookingRejectedCustomerEmail({ booking: updated, service: updated.service, baseUrl }).catch((e) =>
-        console.error("Rejection customer email error:", e.message)
+      // Dispatch decline email to customer and notification to salon admin
+      sendBookingRejectedNotifications({ booking: updated, service: updated.service, baseUrl }).catch((e) =>
+        console.error("Rejection notifications error:", e.message)
       );
 
       return res.send(
@@ -366,12 +368,12 @@ router.put("/:id", requireAdmin, async (req, res, next) => {
 
     // Send emails when status changes from Admin Dashboard
     if (req.body.status === "confirmed" && prev?.status !== "confirmed") {
-      sendBookingApprovedCustomerEmail({ booking: updated, service: updated.service }).catch((e) =>
-        console.error("Failed to send approval email:", e.message)
+      sendBookingApprovedNotifications({ booking: updated, service: updated.service, baseUrl }).catch((e) =>
+        console.error("Failed to send approval notifications:", e.message)
       );
     } else if (req.body.status === "cancelled" && prev?.status !== "cancelled") {
-      sendBookingRejectedCustomerEmail({ booking: updated, service: updated.service, baseUrl }).catch((e) =>
-        console.error("Failed to send cancellation email:", e.message)
+      sendBookingRejectedNotifications({ booking: updated, service: updated.service, baseUrl }).catch((e) =>
+        console.error("Failed to send cancellation notifications:", e.message)
       );
     }
 

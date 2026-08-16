@@ -29,10 +29,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || "Something went wrong on our end." });
 });
 
-// If running locally as a standalone server (e.g. node index.js)
-if (!process.env.FUNCTION_TARGET && !process.env.K_SERVICE && process.env.NODE_ENV !== "production") {
+// If running as a standalone server (Render, Railway, VPS, or local development)
+if (!process.env.FUNCTION_TARGET && !process.env.K_SERVICE) {
   const PORT = process.env.PORT || 4000;
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Velour Hairs API running on http://localhost:${PORT}`);
   });
 }
