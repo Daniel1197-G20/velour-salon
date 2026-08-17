@@ -32,11 +32,8 @@ export default function Footer() {
           </div>
         </div>
       </div>
-      <div className="border-t border-clay/15 py-4 px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between text-xs text-espresso/50 gap-2 text-center sm:text-left">
+      <div className="border-t border-clay/15 py-4 px-4 sm:px-6 flex items-center justify-center text-xs text-espresso/50 text-center">
         <span>© {new Date().getFullYear()} Velour Hairs &amp; Beauty. All rights reserved.</span>
-        <Link to="/admin" className="hover:text-rose underline sm:no-underline font-medium">
-          Admin Sign In
-        </Link>
       </div>
     </footer>
   );
