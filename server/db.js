@@ -28,8 +28,19 @@ if (isFirebaseEnv) {
         if (raw.trim().startsWith("{")) {
           credential = cert(JSON.parse(raw));
         } else {
-          const filePath = path.resolve(process.cwd(), raw);
-          if (fs.existsSync(filePath)) credential = cert(require(filePath));
+          // Look for file relative to server or cwd or standard filename
+          const possiblePaths = [
+            path.resolve(process.cwd(), raw),
+            path.resolve(__dirname, raw),
+            path.resolve(__dirname, "velour-salon-ce77e-firebase-adminsdk-fbsvc-f195317c50.json"),
+            path.resolve(process.cwd(), "server/velour-salon-ce77e-firebase-adminsdk-fbsvc-f195317c50.json"),
+          ];
+          for (const p of possiblePaths) {
+            if (fs.existsSync(p)) {
+              credential = cert(require(p));
+              break;
+            }
+          }
         }
       } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
         const credPath = path.resolve(process.cwd(), process.env.GOOGLE_APPLICATION_CREDENTIALS);
@@ -39,7 +50,7 @@ if (isFirebaseEnv) {
       const projectId =
         process.env.FIREBASE_PROJECT_ID ||
         process.env.GCLOUD_PROJECT ||
-        "velour-hairs";
+        "velour-salon-ce77e";
 
       app = initializeApp({
         ...(credential ? { credential } : {}),
@@ -53,6 +64,7 @@ if (isFirebaseEnv) {
       firestoreDb.settings({ ignoreUndefinedProperties: true });
     } catch {}
     console.log("🔥 [Database] Connected to Firebase Cloud Firestore");
+    seedFirestore();
   } catch (err) {
     console.warn("⚠️  [Firebase init note]:", err.message);
     firestoreDb = null;
@@ -181,6 +193,68 @@ function getSqlite() {
   return sqliteDb;
 }
 
+// Auto-seed Firestore on initial connect
+async function seedFirestore() {
+  if (!firestoreDb) return;
+  try {
+    const servicesSnap = await firestoreDb.collection("services").limit(1).get();
+    if (servicesSnap.empty) {
+      console.log("🌱 [Firestore] Seeding initial services...");
+      const seedServices = [
+        { name: "Knotless Braids", category: "Braiding", description: "Tension-free knotless box braids, medium to jumbo sizes.", price: 25000, duration_minutes: 240, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Cornrows & Feed-in", category: "Braiding", description: "Classic cornrows with feed-in styling, straight or patterned.", price: 12000, duration_minutes: 120, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Ghana Weaving & Packing", category: "Braiding", description: "Sleek Ghana weaving with clean packing gel finish.", price: 10000, duration_minutes: 90, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Gel & Sleek Styling", category: "Styling", description: "Sleek gel styles, ponytails, and edge laying.", price: 6000, duration_minutes: 45, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Silk Press & Wash", category: "Styling", description: "Deep wash, treatment, and silk press blowout.", price: 15000, duration_minutes: 120, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Locs Retwist / Relocking", category: "Locs", description: "Retwist and relocking for healthy, neat locs.", price: 18000, duration_minutes: 150, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Starter Locs", category: "Locs", description: "New loc installation using interlocking or two-strand twists.", price: 30000, duration_minutes: 240, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Wig Revamping", category: "Wigs", description: "Wig washing, styling, and unit restoration.", price: 8000, duration_minutes: 90, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Wig Install & Customization", category: "Wigs", description: "Lace melt install with plucking and customization.", price: 20000, duration_minutes: 150, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Relaxer Touch-up", category: "Treatment", description: "Relaxer application with protein treatment.", price: 13000, duration_minutes: 120, image: "", active: true, created_at: new Date().toISOString() },
+      ];
+      for (const s of seedServices) {
+        await firestoreDb.collection("services").add(s);
+      }
+    }
+
+    const productsSnap = await firestoreDb.collection("products").limit(1).get();
+    if (productsSnap.empty) {
+      console.log("🌱 [Firestore] Seeding initial products...");
+      const seedProducts = [
+        { name: "Edge Control Gel", description: "Strong-hold edge control for laying edges without flaking.", price: 3500, stock: 40, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Braiding Hair Bundle (Jumbo)", description: "Pre-stretched jumbo braiding hair, 3-pack.", price: 4500, stock: 60, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Loc Retwist Gel", description: "Botanical retwist gel for locs, residue-free.", price: 5000, stock: 25, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Silk Bonnet", description: "Adjustable satin-lined bonnet for night protection.", price: 2500, stock: 50, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Scalp Oil Treatment", description: "Rosemary & tea tree scalp oil for growth and relief.", price: 4000, stock: 35, image: "", active: true, created_at: new Date().toISOString() },
+        { name: "Wig Care Kit", description: "Shampoo, conditioner, and detangling brush for wigs.", price: 7000, stock: 20, image: "", active: true, created_at: new Date().toISOString() },
+      ];
+      for (const p of seedProducts) {
+        await firestoreDb.collection("products").add(p);
+      }
+    }
+
+    const adminsSnap = await firestoreDb.collection("admins").limit(1).get();
+    if (adminsSnap.empty) {
+      console.log("🌱 [Firestore] Seeding initial admin...");
+      const hash = bcrypt.hashSync(process.env.ADMIN_PASSWORD || "velour2026", 10);
+      await firestoreDb.collection("admins").add({
+        username: process.env.ADMIN_USERNAME || "admin",
+        password_hash: hash,
+        created_at: new Date().toISOString(),
+      });
+    }
+  } catch (err) {
+    console.warn("⚠️  [Firestore note]:", err.message);
+    if (err.code === 5 || err.message?.includes("NOT_FOUND")) {
+      console.warn("ℹ️  Firestore database '(default)' not found in Firebase Console. Falling back to SQLite.");
+      firestoreDb = null;
+    }
+  }
+}
+
+// Pre-initialize SQLite for instant fallback readiness
+getSqlite();
+
 // ----------------------------------------------------
 // UNIFIED DATA ACCESS LAYER (DAL)
 // ----------------------------------------------------
@@ -188,14 +262,19 @@ const db = {
   services: {
     async list() {
       if (firestoreDb) {
-        const snapshot = await firestoreDb.collection("services").get();
-        const items = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.active !== false) items.push({ id: doc.id, ...data });
-        });
-        items.sort((a, b) => (a.category || "").localeCompare(b.category || "") || (a.name || "").localeCompare(b.name || ""));
-        return items;
+        try {
+          const snapshot = await firestoreDb.collection("services").get();
+          const items = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.active !== false) items.push({ id: doc.id, ...data });
+          });
+          items.sort((a, b) => (a.category || "").localeCompare(b.category || "") || (a.name || "").localeCompare(b.name || ""));
+          return items;
+        } catch (err) {
+          console.warn("Firestore list services failed, falling back to SQLite:", err.message);
+          firestoreDb = null;
+        }
       }
       const s = getSqlite();
       const rows = s.prepare("SELECT * FROM services WHERE active = 1 ORDER BY category, name").all();
@@ -204,9 +283,12 @@ const db = {
 
     async get(id) {
       if (firestoreDb) {
-        const doc = await firestoreDb.collection("services").doc(String(id)).get();
-        if (!doc.exists) return null;
-        return { id: doc.id, ...doc.data() };
+        try {
+          const doc = await firestoreDb.collection("services").doc(String(id)).get();
+          if (doc.exists) return { id: doc.id, ...doc.data() };
+        } catch (err) {
+          console.warn("Firestore get service failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       const row = s.prepare("SELECT * FROM services WHERE id = ?").get(id);
@@ -216,18 +298,22 @@ const db = {
 
     async create({ name, category, description, price, duration_minutes, image }) {
       if (firestoreDb) {
-        const data = {
-          name: String(name).trim(),
-          category: String(category).trim(),
-          description: description || "",
-          price: Number(price) || 0,
-          duration_minutes: Number(duration_minutes) || 60,
-          image: image || "",
-          active: true,
-          created_at: new Date().toISOString(),
-        };
-        const ref = await firestoreDb.collection("services").add(data);
-        return { id: ref.id, ...data };
+        try {
+          const data = {
+            name: String(name).trim(),
+            category: String(category).trim(),
+            description: description || "",
+            price: Number(price) || 0,
+            duration_minutes: Number(duration_minutes) || 60,
+            image: image || "",
+            active: true,
+            created_at: new Date().toISOString(),
+          };
+          const ref = await firestoreDb.collection("services").add(data);
+          return { id: ref.id, ...data };
+        } catch (err) {
+          console.warn("Firestore create service failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       const info = s
@@ -238,15 +324,20 @@ const db = {
 
     async update(id, updates) {
       if (firestoreDb) {
-        const ref = firestoreDb.collection("services").doc(String(id));
-        const doc = await ref.get();
-        if (!doc.exists) return null;
-        const merged = { ...updates };
-        if (merged.price !== undefined) merged.price = Number(merged.price);
-        if (merged.duration_minutes !== undefined) merged.duration_minutes = Number(merged.duration_minutes);
-        await ref.set(merged, { merge: true });
-        const updated = await ref.get();
-        return { id: updated.id, ...updated.data() };
+        try {
+          const ref = firestoreDb.collection("services").doc(String(id));
+          const doc = await ref.get();
+          if (doc.exists) {
+            const merged = { ...updates };
+            if (merged.price !== undefined) merged.price = Number(merged.price);
+            if (merged.duration_minutes !== undefined) merged.duration_minutes = Number(merged.duration_minutes);
+            await ref.set(merged, { merge: true });
+            const updated = await ref.get();
+            return { id: updated.id, ...updated.data() };
+          }
+        } catch (err) {
+          console.warn("Firestore update service failed, falling back to SQLite:", err.message);
+        }
       }
       const existing = await db.services.get(id);
       if (!existing) return null;
@@ -267,9 +358,13 @@ const db = {
 
     async remove(id) {
       if (firestoreDb) {
-        const ref = firestoreDb.collection("services").doc(String(id));
-        await ref.update({ active: false });
-        return { ok: true };
+        try {
+          const ref = firestoreDb.collection("services").doc(String(id));
+          await ref.update({ active: false });
+          return { ok: true };
+        } catch (err) {
+          console.warn("Firestore remove service failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       s.prepare("UPDATE services SET active = 0 WHERE id = ?").run(id);
@@ -280,14 +375,19 @@ const db = {
   products: {
     async list() {
       if (firestoreDb) {
-        const snapshot = await firestoreDb.collection("products").get();
-        const items = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.active !== false) items.push({ id: doc.id, ...data });
-        });
-        items.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-        return items;
+        try {
+          const snapshot = await firestoreDb.collection("products").get();
+          const items = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.active !== false) items.push({ id: doc.id, ...data });
+          });
+          items.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+          return items;
+        } catch (err) {
+          console.warn("Firestore list products failed, falling back to SQLite:", err.message);
+          firestoreDb = null;
+        }
       }
       const s = getSqlite();
       const rows = s.prepare("SELECT * FROM products WHERE active = 1 ORDER BY name").all();
@@ -296,9 +396,12 @@ const db = {
 
     async get(id) {
       if (firestoreDb) {
-        const doc = await firestoreDb.collection("products").doc(String(id)).get();
-        if (!doc.exists) return null;
-        return { id: doc.id, ...doc.data() };
+        try {
+          const doc = await firestoreDb.collection("products").doc(String(id)).get();
+          if (doc.exists) return { id: doc.id, ...doc.data() };
+        } catch (err) {
+          console.warn("Firestore get product failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       const row = s.prepare("SELECT * FROM products WHERE id = ?").get(id);
@@ -308,17 +411,21 @@ const db = {
 
     async create({ name, description, price, stock, image }) {
       if (firestoreDb) {
-        const data = {
-          name: String(name).trim(),
-          description: description || "",
-          price: Number(price) || 0,
-          stock: Number(stock) || 0,
-          image: image || "",
-          active: true,
-          created_at: new Date().toISOString(),
-        };
-        const ref = await firestoreDb.collection("products").add(data);
-        return { id: ref.id, ...data };
+        try {
+          const data = {
+            name: String(name).trim(),
+            description: description || "",
+            price: Number(price) || 0,
+            stock: Number(stock) || 0,
+            image: image || "",
+            active: true,
+            created_at: new Date().toISOString(),
+          };
+          const ref = await firestoreDb.collection("products").add(data);
+          return { id: ref.id, ...data };
+        } catch (err) {
+          console.warn("Firestore create product failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       const info = s
@@ -329,15 +436,20 @@ const db = {
 
     async update(id, updates) {
       if (firestoreDb) {
-        const ref = firestoreDb.collection("products").doc(String(id));
-        const doc = await ref.get();
-        if (!doc.exists) return null;
-        const merged = { ...updates };
-        if (merged.price !== undefined) merged.price = Number(merged.price);
-        if (merged.stock !== undefined) merged.stock = Number(merged.stock);
-        await ref.set(merged, { merge: true });
-        const updated = await ref.get();
-        return { id: updated.id, ...updated.data() };
+        try {
+          const ref = firestoreDb.collection("products").doc(String(id));
+          const doc = await ref.get();
+          if (doc.exists) {
+            const merged = { ...updates };
+            if (merged.price !== undefined) merged.price = Number(merged.price);
+            if (merged.stock !== undefined) merged.stock = Number(merged.stock);
+            await ref.set(merged, { merge: true });
+            const updated = await ref.get();
+            return { id: updated.id, ...updated.data() };
+          }
+        } catch (err) {
+          console.warn("Firestore update product failed, falling back to SQLite:", err.message);
+        }
       }
       const existing = await db.products.get(id);
       if (!existing) return null;
@@ -357,9 +469,13 @@ const db = {
 
     async remove(id) {
       if (firestoreDb) {
-        const ref = firestoreDb.collection("products").doc(String(id));
-        await ref.update({ active: false });
-        return { ok: true };
+        try {
+          const ref = firestoreDb.collection("products").doc(String(id));
+          await ref.update({ active: false });
+          return { ok: true };
+        } catch (err) {
+          console.warn("Firestore remove product failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       s.prepare("UPDATE products SET active = 0 WHERE id = ?").run(id);
@@ -370,14 +486,19 @@ const db = {
   bookings: {
     async get(id) {
       if (firestoreDb) {
-        const doc = await firestoreDb.collection("bookings").doc(String(id)).get();
-        if (!doc.exists) return null;
-        const data = doc.data();
-        let service = null;
-        if (data.service_id) {
-          service = await db.services.get(data.service_id);
+        try {
+          const doc = await firestoreDb.collection("bookings").doc(String(id)).get();
+          if (doc.exists) {
+            const data = doc.data();
+            let service = null;
+            if (data.service_id) {
+              service = await db.services.get(data.service_id);
+            }
+            return { id: doc.id, ...data, service };
+          }
+        } catch (err) {
+          console.warn("Firestore get booking failed, falling back to SQLite:", err.message);
         }
-        return { id: doc.id, ...data, service };
       }
       const s = getSqlite();
       const row = s
@@ -411,39 +532,44 @@ const db = {
       }
 
       if (firestoreDb) {
-        const clashesSnapshot = await firestoreDb
-          .collection("bookings")
-          .where("date", "==", date)
-          .where("time", "==", time)
-          .get();
+        try {
+          const clashesSnapshot = await firestoreDb
+            .collection("bookings")
+            .where("date", "==", date)
+            .where("time", "==", time)
+            .get();
 
-        let isClash = false;
-        clashesSnapshot.forEach((doc) => {
-          if (doc.data().status !== "cancelled") isClash = true;
-        });
+          let isClash = false;
+          clashesSnapshot.forEach((doc) => {
+            if (doc.data().status !== "cancelled") isClash = true;
+          });
 
-        if (isClash) {
-          const err = new Error("That time slot is already booked. Please choose another.");
-          err.statusCode = 409;
-          throw err;
+          if (isClash) {
+            const err = new Error("That time slot is already booked. Please choose another.");
+            err.statusCode = 409;
+            throw err;
+          }
+
+          const newBooking = {
+            customer_name: String(customer_name).trim(),
+            phone: String(phone).trim(),
+            email: email ? String(email).trim() : "",
+            service_id: String(service_id),
+            service_name: service.name,
+            service_price: service.price,
+            date,
+            time,
+            notes: notes ? String(notes).trim() : "",
+            status: "pending",
+            created_at: new Date().toISOString(),
+          };
+
+          const docRef = await firestoreDb.collection("bookings").add(newBooking);
+          return { id: docRef.id, ...newBooking, service };
+        } catch (err) {
+          if (err.statusCode === 409) throw err;
+          console.warn("Firestore create booking failed, falling back to SQLite:", err.message);
         }
-
-        const newBooking = {
-          customer_name: String(customer_name).trim(),
-          phone: String(phone).trim(),
-          email: email ? String(email).trim() : "",
-          service_id: String(service_id),
-          service_name: service.name,
-          service_price: service.price,
-          date,
-          time,
-          notes: notes ? String(notes).trim() : "",
-          status: "pending",
-          created_at: new Date().toISOString(),
-        };
-
-        const docRef = await firestoreDb.collection("bookings").add(newBooking);
-        return { id: docRef.id, ...newBooking, service };
       }
 
       const s = getSqlite();
@@ -464,13 +590,17 @@ const db = {
 
     async taken(date) {
       if (firestoreDb) {
-        const snapshot = await firestoreDb.collection("bookings").where("date", "==", date).get();
-        const taken = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.status !== "cancelled" && data.time) taken.push(data.time);
-        });
-        return taken;
+        try {
+          const snapshot = await firestoreDb.collection("bookings").where("date", "==", date).get();
+          const taken = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.status !== "cancelled" && data.time) taken.push(data.time);
+          });
+          return taken;
+        } catch (err) {
+          console.warn("Firestore taken bookings failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       const rows = s.prepare("SELECT time FROM bookings WHERE date = ? AND status != 'cancelled'").all(date);
@@ -479,13 +609,17 @@ const db = {
 
     async list() {
       if (firestoreDb) {
-        const snapshot = await firestoreDb.collection("bookings").get();
-        const bookings = [];
-        snapshot.forEach((doc) => {
-          bookings.push({ id: doc.id, ...doc.data() });
-        });
-        bookings.sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.time || "").localeCompare(a.time || ""));
-        return bookings;
+        try {
+          const snapshot = await firestoreDb.collection("bookings").get();
+          const bookings = [];
+          snapshot.forEach((doc) => {
+            bookings.push({ id: doc.id, ...doc.data() });
+          });
+          bookings.sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.time || "").localeCompare(a.time || ""));
+          return bookings;
+        } catch (err) {
+          console.warn("Firestore list bookings failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       const rows = s
@@ -500,11 +634,16 @@ const db = {
 
     async update(id, { status }) {
       if (firestoreDb) {
-        const ref = firestoreDb.collection("bookings").doc(String(id));
-        const doc = await ref.get();
-        if (!doc.exists) return null;
-        await ref.update({ status });
-        return db.bookings.get(id);
+        try {
+          const ref = firestoreDb.collection("bookings").doc(String(id));
+          const doc = await ref.get();
+          if (doc.exists) {
+            await ref.update({ status });
+            return db.bookings.get(id);
+          }
+        } catch (err) {
+          console.warn("Firestore update booking failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       const existing = s.prepare("SELECT * FROM bookings WHERE id = ?").get(id);
@@ -515,9 +654,13 @@ const db = {
 
     async remove(id) {
       if (firestoreDb) {
-        const ref = firestoreDb.collection("bookings").doc(String(id));
-        await ref.delete();
-        return { ok: true };
+        try {
+          const ref = firestoreDb.collection("bookings").doc(String(id));
+          await ref.delete();
+          return { ok: true };
+        } catch (err) {
+          console.warn("Firestore delete booking failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       s.prepare("DELETE FROM bookings WHERE id = ?").run(id);
@@ -549,18 +692,22 @@ const db = {
       }
 
       if (firestoreDb) {
-        const newOrder = {
-          customer_name: String(customer_name).trim(),
-          phone: String(phone).trim(),
-          email: email ? String(email).trim() : "",
-          address: String(address).trim(),
-          items: resolvedItems,
-          total,
-          status: "pending",
-          created_at: new Date().toISOString(),
-        };
-        const docRef = await firestoreDb.collection("orders").add(newOrder);
-        return { id: docRef.id, ...newOrder };
+        try {
+          const newOrder = {
+            customer_name: String(customer_name).trim(),
+            phone: String(phone).trim(),
+            email: email ? String(email).trim() : "",
+            address: String(address).trim(),
+            items: resolvedItems,
+            total,
+            status: "pending",
+            created_at: new Date().toISOString(),
+          };
+          const docRef = await firestoreDb.collection("orders").add(newOrder);
+          return { id: docRef.id, ...newOrder };
+        } catch (err) {
+          console.warn("Firestore create order failed, falling back to SQLite:", err.message);
+        }
       }
 
       const s = getSqlite();
@@ -573,13 +720,17 @@ const db = {
 
     async list() {
       if (firestoreDb) {
-        const snapshot = await firestoreDb.collection("orders").get();
-        const orders = [];
-        snapshot.forEach((doc) => {
-          orders.push({ id: doc.id, ...doc.data() });
-        });
-        orders.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
-        return orders;
+        try {
+          const snapshot = await firestoreDb.collection("orders").get();
+          const orders = [];
+          snapshot.forEach((doc) => {
+            orders.push({ id: doc.id, ...doc.data() });
+          });
+          orders.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+          return orders;
+        } catch (err) {
+          console.warn("Firestore list orders failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       const rows = s.prepare("SELECT * FROM orders ORDER BY created_at DESC").all();
@@ -588,12 +739,17 @@ const db = {
 
     async update(id, { status }) {
       if (firestoreDb) {
-        const ref = firestoreDb.collection("orders").doc(String(id));
-        const doc = await ref.get();
-        if (!doc.exists) return null;
-        await ref.update({ status });
-        const updated = await ref.get();
-        return { id: updated.id, ...updated.data() };
+        try {
+          const ref = firestoreDb.collection("orders").doc(String(id));
+          const doc = await ref.get();
+          if (doc.exists) {
+            await ref.update({ status });
+            const updated = await ref.get();
+            return { id: updated.id, ...updated.data() };
+          }
+        } catch (err) {
+          console.warn("Firestore update order failed, falling back to SQLite:", err.message);
+        }
       }
       const s = getSqlite();
       const existing = s.prepare("SELECT * FROM orders WHERE id = ?").get(id);
@@ -607,12 +763,15 @@ const db = {
   admin: {
     async findByUsername(username) {
       if (firestoreDb) {
-        const snapshot = await firestoreDb.collection("admins").where("username", "==", username).limit(1).get();
-        if (!snapshot.empty) {
-          const doc = snapshot.docs[0];
-          return { id: doc.id, ...doc.data() };
+        try {
+          const snapshot = await firestoreDb.collection("admins").where("username", "==", username).limit(1).get();
+          if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            return { id: doc.id, ...doc.data() };
+          }
+        } catch (err) {
+          console.warn("Firestore find admin failed, falling back to SQLite:", err.message);
         }
-        return null;
       }
       const s = getSqlite();
       const row = s.prepare("SELECT * FROM admins WHERE username = ?").get(username);
@@ -622,27 +781,31 @@ const db = {
 
     async getSummary() {
       if (firestoreDb) {
-        const [bookingsSnap, ordersSnap, servicesSnap] = await Promise.all([
-          firestoreDb.collection("bookings").get(),
-          firestoreDb.collection("orders").get(),
-          firestoreDb.collection("services").get(),
-        ]);
-        let pendingBookings = 0;
-        bookingsSnap.forEach((doc) => {
-          if (doc.data().status === "pending") pendingBookings++;
-        });
-        let pendingOrders = 0;
-        let revenue = 0;
-        ordersSnap.forEach((doc) => {
-          const data = doc.data();
-          if (data.status === "pending") pendingOrders++;
-          if (data.status !== "cancelled") revenue += Number(data.total) || 0;
-        });
-        let serviceCount = 0;
-        servicesSnap.forEach((doc) => {
-          if (doc.data().active !== false) serviceCount++;
-        });
-        return { pendingBookings, pendingOrders, revenue, serviceCount };
+        try {
+          const [bookingsSnap, ordersSnap, servicesSnap] = await Promise.all([
+            firestoreDb.collection("bookings").get(),
+            firestoreDb.collection("orders").get(),
+            firestoreDb.collection("services").get(),
+          ]);
+          let pendingBookings = 0;
+          bookingsSnap.forEach((doc) => {
+            if (doc.data().status === "pending") pendingBookings++;
+          });
+          let pendingOrders = 0;
+          let revenue = 0;
+          ordersSnap.forEach((doc) => {
+            const data = doc.data();
+            if (data.status === "pending") pendingOrders++;
+            if (data.status !== "cancelled") revenue += Number(data.total) || 0;
+          });
+          let serviceCount = 0;
+          servicesSnap.forEach((doc) => {
+            if (doc.data().active !== false) serviceCount++;
+          });
+          return { pendingBookings, pendingOrders, revenue, serviceCount };
+        } catch (err) {
+          console.warn("Firestore get summary failed, falling back to SQLite:", err.message);
+        }
       }
 
       const s = getSqlite();
