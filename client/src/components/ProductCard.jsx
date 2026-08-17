@@ -29,40 +29,40 @@ export default function ProductCard({ product }) {
   }
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-2xl border border-clay/15 bg-white/75 backdrop-blur-sm transition-all duration-300 hover:shadow-xl hover:border-clay/30 hover:-translate-y-1">
-      <div className="relative h-44 w-full overflow-hidden bg-stone">
+    <div className="group flex flex-col overflow-hidden rounded-2xl border border-clay/15 bg-white/80 backdrop-blur-sm transition-all duration-300 hover:shadow-xl hover:border-clay/30 hover:-translate-y-0.5 active:scale-[0.99]">
+      <div className="relative h-40 sm:h-44 w-full overflow-hidden bg-stone">
         <img
           src={imgSrc}
           alt={product.name}
-          className="h-full w-full object-cover object-center transition-transform duration-700 group-hover:scale-108"
+          className="h-full w-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
           loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-espresso/50 via-transparent to-transparent opacity-60 group-hover:opacity-30 transition-opacity" />
         <span
-          className={`absolute top-3 right-3 rounded-full px-2.5 py-0.5 text-[11px] font-medium backdrop-blur-md shadow-sm ${
-            outOfStock ? "bg-rose/90 text-white" : "bg-white/90 text-espresso"
+          className={`absolute top-3 right-3 rounded-full px-2.5 py-0.5 text-[11px] font-semibold backdrop-blur-md shadow-xs ${
+            outOfStock ? "bg-rose/90 text-white" : "bg-white/95 text-espresso"
           }`}
         >
           {outOfStock ? "Out of stock" : `${product.stock} in stock`}
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-5">
-        <h3 className="font-display text-base text-espresso group-hover:text-rose transition-colors">
+      <div className="flex flex-1 flex-col gap-2 p-4 sm:p-5">
+        <h3 className="font-display text-base sm:text-lg font-bold text-espresso group-hover:text-rose transition-colors">
           {product.name}
         </h3>
-        <p className="flex-1 text-sm text-espresso/70 line-clamp-2 leading-relaxed">
+        <p className="flex-1 text-xs sm:text-sm text-espresso/70 line-clamp-2 leading-relaxed">
           {product.description}
         </p>
-        <div className="mt-2 flex items-center justify-between border-t border-clay/10 pt-3">
-          <span className="font-display text-base font-semibold text-espresso">
+        <div className="mt-1 flex items-center justify-between border-t border-clay/10 pt-3">
+          <span className="font-display text-base sm:text-lg font-bold text-espresso">
             {formatNaira(product.price)}
           </span>
         </div>
         <button
           onClick={handleAdd}
           disabled={outOfStock}
-          className={`mt-3 rounded-full px-4 py-2.5 text-sm font-medium transition-all duration-200 shadow-sm ${
+          className={`mt-2.5 rounded-full px-4 py-3 text-xs sm:text-sm font-semibold transition-all duration-200 shadow-xs active:scale-98 ${
             added
               ? "bg-clay text-cream"
               : outOfStock
@@ -70,7 +70,7 @@ export default function ProductCard({ product }) {
               : "bg-espresso text-cream hover:bg-rose hover:shadow-md"
           }`}
         >
-          {added ? "Added to cart ✓" : outOfStock ? "Unavailable" : "Add to cart"}
+          {added ? "Added to cart ✓" : outOfStock ? "Unavailable" : "+ Add to cart"}
         </button>
       </div>
     </div>

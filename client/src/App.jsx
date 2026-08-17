@@ -12,12 +12,15 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { CartProvider } from "./context/CartContext";
 import { AdminProvider } from "./context/AdminContext";
 
+import MobileBottomNav from "./components/MobileBottomNav";
+
 function SiteLayout({ children }) {
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
+      <MobileBottomNav />
     </div>
   );
 }

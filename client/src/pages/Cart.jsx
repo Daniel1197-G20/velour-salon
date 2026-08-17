@@ -67,96 +67,177 @@ export default function Cart() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-14">
-      <p className="text-xs uppercase tracking-widest text-rose">Checkout</p>
-      <h1 className="mt-1 font-display text-4xl text-espresso">Your cart</h1>
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-14">
+      <p className="text-xs uppercase tracking-widest font-semibold text-rose">Checkout</p>
+      <h1 className="mt-1 font-display text-3xl sm:text-4xl font-bold text-espresso">Your cart</h1>
 
-      <div className="mt-8 divide-y divide-clay/15 rounded-2xl border border-clay/15 bg-white/50">
+      {/* Cart Items List */}
+      <div className="mt-6 divide-y divide-clay/15 rounded-2xl border border-clay/15 bg-white/80 shadow-xs overflow-hidden">
         {items.map((i) => (
-          <div key={i.product_id} className="flex items-center gap-4 p-4">
-            <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl bg-stone border border-clay/20 shadow-sm">
-              <img
-                src={i.image || getProductImage(i)}
-                alt={i.name}
-                className="h-full w-full object-cover object-center"
-              />
+          <div key={i.product_id} className="p-3.5 sm:p-4">
+            {/* Responsive 2-tier layout on mobile, 1-row on desktop */}
+            <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+              {/* Product Thumbnail */}
+              <div className="relative h-16 w-16 sm:h-14 sm:w-14 flex-shrink-0 overflow-hidden rounded-xl bg-stone border border-clay/20 shadow-2xs">
+                <img
+                  src={i.image || getProductImage(i)}
+                  alt={i.name}
+                  className="h-full w-full object-cover object-center"
+                />
+              </div>
+
+              {/* Title, Unit Price & Desktop/Mobile Stepper */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-display text-sm sm:text-base font-semibold text-espresso leading-snug">
+                      {i.name}
+                    </p>
+                    <p className="text-xs text-espresso/60 mt-0.5">
+                      {formatNaira(i.price)} each
+                    </p>
+                  </div>
+                  {/* Remove Button (Mobile visible in top-right) */}
+                  <button
+                    onClick={() => removeItem(i.product_id)}
+                    className="p-1 text-espresso/40 hover:text-rose transition-colors"
+                    aria-label={`Remove ${i.name} from cart`}
+                    title="Remove item"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Mobile Bottom Action Bar (Quantity + Price) */}
+                <div className="mt-3 flex items-center justify-between sm:hidden pt-2 border-t border-clay/10">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateQuantity(i.product_id, i.quantity - 1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-clay/30 bg-stone/40 text-sm font-bold text-espresso active:bg-rose/20"
+                      aria-label="Decrease quantity"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center text-xs font-semibold text-espresso">{i.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(i.product_id, i.quantity + 1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-clay/30 bg-stone/40 text-sm font-bold text-espresso active:bg-rose/20"
+                      aria-label="Increase quantity"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="font-display text-sm font-bold text-espresso">
+                    {formatNaira(i.price * i.quantity)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Desktop Stepper and Total Price */}
+              <div className="hidden sm:flex items-center gap-2">
+                <button
+                  onClick={() => updateQuantity(i.product_id, i.quantity - 1)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-clay/30 text-espresso hover:border-rose"
+                  aria-label="Decrease quantity"
+                >
+                  −
+                </button>
+                <span className="w-6 text-center text-xs font-semibold">{i.quantity}</span>
+                <button
+                  onClick={() => updateQuantity(i.product_id, i.quantity + 1)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-clay/30 text-espresso hover:border-rose"
+                  aria-label="Increase quantity"
+                >
+                  +
+                </button>
+              </div>
+              <p className="hidden sm:block w-24 text-right font-display font-bold text-espresso">
+                {formatNaira(i.price * i.quantity)}
+              </p>
             </div>
-            <div className="flex-1">
-              <p className="font-display text-espresso">{i.name}</p>
-              <p className="text-sm text-espresso/60">{formatNaira(i.price)} each</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => updateQuantity(i.product_id, i.quantity - 1)}
-                className="h-7 w-7 rounded-full border border-clay/30 text-espresso hover:border-rose"
-              >
-                −
-              </button>
-              <span className="w-6 text-center">{i.quantity}</span>
-              <button
-                onClick={() => updateQuantity(i.product_id, i.quantity + 1)}
-                className="h-7 w-7 rounded-full border border-clay/30 text-espresso hover:border-rose"
-              >
-                +
-              </button>
-            </div>
-            <p className="w-24 text-right font-display text-espresso">{formatNaira(i.price * i.quantity)}</p>
-            <button
-              onClick={() => removeItem(i.product_id)}
-              className="ml-2 text-xs text-espresso/40 hover:text-rose"
-              aria-label={`Remove ${i.name}`}
-            >
-              Remove
-            </button>
           </div>
         ))}
       </div>
 
-      <div className="mt-4 flex justify-end">
-        <p className="font-display text-xl text-espresso">Total: {formatNaira(total)}</p>
+      {/* Cart Summary */}
+      <div className="mt-4 flex items-center justify-between rounded-2xl border border-clay/15 bg-white/60 px-5 py-4">
+        <span className="text-xs uppercase tracking-wider font-semibold text-clay">Total Due on Arrival</span>
+        <span className="font-display text-xl sm:text-2xl font-bold text-espresso">{formatNaira(total)}</span>
       </div>
 
-      <form onSubmit={handleCheckout} className="mt-10 space-y-4">
-        <p className="font-display text-sm uppercase tracking-widest text-clay">Delivery details</p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <input
-            required
-            placeholder="Full name"
-            value={form.customer_name}
-            onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
-            className="rounded-xl border border-clay/25 bg-white/70 px-4 py-3 focus:border-rose"
-          />
-          <input
-            required
-            placeholder="Phone number"
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            className="rounded-xl border border-clay/25 bg-white/70 px-4 py-3 focus:border-rose"
-          />
-          <input
-            type="email"
-            placeholder="Email (optional)"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="rounded-xl border border-clay/25 bg-white/70 px-4 py-3 focus:border-rose sm:col-span-2"
-          />
-          <textarea
-            required
-            placeholder="Delivery address"
-            value={form.address}
-            onChange={(e) => setForm({ ...form, address: e.target.value })}
-            rows={3}
-            className="rounded-xl border border-clay/25 bg-white/70 px-4 py-3 focus:border-rose sm:col-span-2"
-          />
+      {/* Checkout Form */}
+      <form onSubmit={handleCheckout} className="mt-8 space-y-4">
+        <div>
+          <p className="font-display text-sm font-semibold uppercase tracking-widest text-clay">
+            Delivery &amp; Customer Details
+          </p>
+          <p className="text-xs text-espresso/60 mt-0.5">Please provide your details so we can fulfill your order.</p>
         </div>
-        <p className="text-sm text-espresso/60">Payment is made on arrival or delivery — no card needed now.</p>
-        {error && <p className="text-sm text-rose">{error}</p>}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-semibold text-espresso mb-1">Full Name *</label>
+            <input
+              required
+              placeholder="e.g. Amara Okafor"
+              value={form.customer_name}
+              onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
+              className="w-full rounded-xl border border-clay/25 bg-white px-4 py-3 text-espresso focus:border-rose focus:outline-none shadow-2xs"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-espresso mb-1">Phone Number *</label>
+            <input
+              required
+              type="tel"
+              placeholder="e.g. 0810 304 3035"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              className="w-full rounded-xl border border-clay/25 bg-white px-4 py-3 text-espresso focus:border-rose focus:outline-none shadow-2xs"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-espresso mb-1">Email (Optional)</label>
+            <input
+              type="email"
+              placeholder="e.g. amara@example.com"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full rounded-xl border border-clay/25 bg-white px-4 py-3 text-espresso focus:border-rose focus:outline-none shadow-2xs"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-espresso mb-1">Delivery Address *</label>
+            <textarea
+              required
+              placeholder="Street address, apartment, or salon pickup note"
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              rows={3}
+              className="w-full rounded-xl border border-clay/25 bg-white px-4 py-3 text-espresso focus:border-rose focus:outline-none shadow-2xs"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-stone/40 border border-clay/15 p-3.5 text-xs text-espresso/75 leading-relaxed">
+          💳 <strong>No upfront card payment required.</strong> Payment is collected directly on arrival or upon package delivery.
+        </div>
+
+        {error && (
+          <div className="rounded-xl bg-rose/10 border border-rose/20 p-3 text-xs text-rose font-medium">
+            {error}
+          </div>
+        )}
+
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-full bg-espresso px-7 py-3.5 text-sm font-medium text-cream transition-colors hover:bg-rose disabled:opacity-60 sm:w-auto"
+          className="w-full rounded-full bg-espresso px-7 py-3.5 text-sm font-semibold text-cream shadow-md transition-all hover:bg-rose active:scale-98 disabled:opacity-60"
         >
-          {submitting ? "Placing order…" : "Place order (pay on arrival)"}
+          {submitting ? "Placing order…" : "Place order (pay on arrival) →"}
         </button>
       </form>
     </div>

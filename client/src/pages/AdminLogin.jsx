@@ -18,44 +18,71 @@ export default function AdminLogin() {
       await login(username, password);
       navigate("/admin");
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Invalid login credentials. Please try again.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center px-5 py-14">
-      <p className="text-xs uppercase tracking-widest text-rose">Staff access</p>
-      <h1 className="mt-1 font-display text-3xl text-espresso">Admin sign in</h1>
-      <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-        <input
-          required
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          className="w-full rounded-xl border border-clay/25 bg-white/70 px-4 py-3 focus:border-rose"
-        />
-        <input
-          required
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-xl border border-clay/25 bg-white/70 px-4 py-3 focus:border-rose"
-        />
-        {error && <p className="text-sm text-rose">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-full bg-espresso px-7 py-3 text-sm font-medium text-cream hover:bg-rose disabled:opacity-60"
-        >
-          {submitting ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
-      <p className="mt-6 text-xs text-espresso/50">
-        Default credentials come from the server's <code>.env</code> file (ADMIN_USERNAME / ADMIN_PASSWORD).
-      </p>
+    <div className="mx-auto flex min-h-[75vh] max-w-sm flex-col justify-center px-5 py-8 sm:py-14">
+      <div className="rounded-3xl border border-clay/15 bg-white/80 p-6 sm:p-8 shadow-sm backdrop-blur-sm">
+        <div className="text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-espresso text-cream text-xl shadow-xs">
+            👑
+          </div>
+          <p className="mt-3 text-xs uppercase tracking-widest font-semibold text-rose">Salon Management</p>
+          <h1 className="mt-1 font-display text-2xl font-bold text-espresso">Admin Sign In</h1>
+          <p className="mt-1 text-xs text-espresso/60">Enter your credentials to access appointments and orders.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-6 space-y-3.5">
+          <div>
+            <label className="block text-xs font-semibold text-espresso mb-1">Username</label>
+            <input
+              required
+              autoCapitalize="none"
+              autoCorrect="off"
+              placeholder="e.g. admin"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full rounded-xl border border-clay/25 bg-white px-4 py-3 text-base text-espresso focus:border-rose focus:outline-none shadow-2xs"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-espresso mb-1">Password</label>
+            <input
+              required
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-xl border border-clay/25 bg-white px-4 py-3 text-base text-espresso focus:border-rose focus:outline-none shadow-2xs"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-xl bg-rose/10 border border-rose/20 p-2.5 text-xs text-rose font-medium text-center">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded-full bg-espresso py-3.5 text-sm font-semibold text-cream shadow-sm hover:bg-rose active:scale-98 disabled:opacity-60 transition-all"
+          >
+            {submitting ? "Signing in…" : "Sign In to Dashboard →"}
+          </button>
+        </form>
+      </div>
+
+      <div className="mt-6 text-center">
+        <a href="/" className="text-xs text-espresso/60 hover:text-rose transition-colors">
+          ← Back to Homepage
+        </a>
+      </div>
     </div>
   );
 }
